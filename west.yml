@@ -1,0 +1,10 @@
+manifest:
+  projects:
+    - name: zephyr
+      url: https://github.com/zephyrproject-rtos/zephyr
+      revision: main
+      import:
+        name-allowlist:
+          - hal_nordic
+          - tinycrypt
+          - nrf_hw_models
