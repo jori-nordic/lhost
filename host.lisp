@@ -26,10 +26,9 @@
 (make-c-int :u32 8000)
 
 (defun decode-c-int (bytes)
- (let ((result 0))
-    (dolist (byte bytes)
-      (setf result (logior (ash result 8) byte)))
-    result))
+  (let ((result 0))
+    (dolist (byte (reverse bytes) result) ; Reverse the byte order for little endian
+      (setf result (logior (ash result 8) byte)))))
 
 (decode-c-int '(1 2))
 
