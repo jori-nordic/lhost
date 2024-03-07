@@ -1,22 +1,3 @@
-;; Idea:
-;; Instead of making the fifo ourselves, take as arguments:
-;; - fifo to coordinator device (written in C)
-;; - executable + fifo to LL device
-;;
-;; The REPL still needs to be compatible with a HW target.
-;;
-;; In that case, we will connect to a UART stream rather than a named pipe.
-;;
-;; We can have a START-SESSION that takes a session object.
-;; Session object is created by:
-;; - INIT-HW :
-;;   - reset board
-;;   - open uart stream
-;; - INIT-SIM :
-;;   - start coordinator
-;;   - start peer device
-;;   - mkfifo for comm w/ coordinator
-
 ;;;;;;;;;;;;; general utils
 
 (defun make-range (max)
