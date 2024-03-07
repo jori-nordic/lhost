@@ -12,13 +12,15 @@
 
 (make-uint 4 8000)
 
-(defun make-c-int (type value)
-  (make-uint
-   (case type
+(defun u2b (type)
+  (case type
      (:u8 1)
      (:u16 2)
-     (:u32 4))
-   value))
+     (:u32 4)
+     (t (error "unknown type ~A" type))))
+
+(defun make-c-int (type value)
+  (make-uint (u2b type) value))
 
 (make-c-int :u8 #xFF)
 (make-c-int :u32 8000)
