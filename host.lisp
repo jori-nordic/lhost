@@ -45,6 +45,7 @@
 
 ;; Eg. write default data length cmd. Len = 200 bytes, time = 1000 us
 (make-c-struct '(("tx-octets" :u16 200) ("tx-time-us" :u16 1000)))
+ ; => (200 0 232 3)
 
 ;;;;;;;;;;;;; babblesim PHY
 
@@ -119,18 +120,123 @@
    (list (getf +h4-types+ type))
    payload))
 
+;; Schema is (:name (#xOPCODE PARAM-PLIST RSP-PLIST))
 (defparameter *hci-cmds*
-  '(:reset (#x0c03 nil)
+  '(:reset (#x0c03 nil (:status :u8))
 
     :write-default-data-length
     (#x2024
      (:tx-octets :u16
-      :tx-time-us :u16))
+      :tx-time-us :u16)
+     nil)
 
-    :read-buffer-size (#x2002 nil)
+    :read-buffer-size
+    (#x2002
+     nil
+     (:status :u8
+      :le-len :u16
+      :le-num :u8))
     ))
 
 (getf *hci-cmds* :write-default-data-length)
+ ; => (8228 (:TX-OCTETS :U16 :TX-TIME-US :U16) NIL)
+(getf *hci-cmds* :read-buffer-size)
+ ; => (8194 NIL (:STATUS :U8 :LE-LEN :U16 :LE-NUM :U8))
+
+;; Destructively pop `amount` bytes out of `buffer` which is a list of bytes.
+(defmacro pull (buffer amount)
+  `(let ((bytes (subseq ,buffer 0 ,amount)))
+     (setf ,buffer (subseq ,buffer ,amount))
+     bytes))
+
+(defmacro pull-int (buffer type)
+  `(decode-c-int (pull ,buffer (u2b ,type))))
+
+(defparameter *test* '(#x4 #x1 #x3 #xc #x0))
+(pull-int *test* :u16)
+ ; => 260 (9 bits, #x104)
+(pull-int *test* :u16)
+ ; => 3075 (12 bits, #xC03)
+
+(defun opcode->cmd (opcode)
+  (loop for (command properties) on *hci-cmds* by #'cddr
+        when (equal (nth 0 properties) opcode)
+          return command))
+
+(opcode->cmd #x2002)
+ ; => :READ-BUFFER-SIZE
+
+(defun command-properties (opcode)
+  (loop for (command properties) on *hci-cmds* by #'cddr
+        when (equal (nth 0 properties) opcode)
+          return (list command properties)))
+
+(command-properties #x2002)
+ ; => (:READ-BUFFER-SIZE (8194 NIL (:STATUS :U8 :LE-LEN :U16 :LE-NUM :U8)))
+
+(defun parse-cmd-response (opcode payload)
+  (let* ((command (command-properties opcode))
+         (properties (nth 1 command))
+         (schema (if properties (nth 2 properties))))
+
+    (when t
+      ;; loop over param plist, replacing
+      (loop for (name type) on schema by #'cddr
+            nconc
+            (list name (pull-int payload type))))))
+
+(parse-cmd-response #x2002 '(0 #xFB 0 3))
+ ; => (:STATUS 0 :LE-LEN 251 :LE-NUM 3)
+
+(defun evt-cmd-complete (payload)
+  (let ((ncmd (pull-int payload :u8))
+        (opcode (pull-int payload :u16)))
+    (list :cmd-complete
+          (list
+           :ncmd ncmd
+           :opcode opcode
+           :params (parse-cmd-response opcode payload)))))
+
+(evt-cmd-complete '(#x1 #x3 #xc #x0))
+ ; => (:CMD-COMPLETE (:NCMD 1 :OPCODE 3075 :PARAMS (:STATUS 0)))
+(evt-cmd-complete '(1 2 #x20 0 #xFB 0 3))
+ ; => (:CMD-COMPLETE (:NCMD 1 :OPCODE 8194 :PARAMS (:STATUS 0 :LE-LEN 251 :LE-NUM 3)))
+
+(defun evt-cmd-status (payload)
+  (list
+   :cmd-status
+   (list
+    :status (pull-int payload :u8)
+    :ncmd (pull-int payload :u8)
+    :opcode (pull-int payload :u16))))
+
+(evt-cmd-status '(#x1 #x1 #x3 #xc))
+ ; => (:CMD-STATUS (:STATUS 1 :NCMD 1 :OPCODE 3075))
+
+(defparameter *hci-events*
+  '(#x0e evt-cmd-complete
+    #x0f evt-cmd-status))
+
+(getf *hci-events* #x0e)
+ ; => EVT-CMD-COMPLETE
+
+(funcall (getf *hci-events* #x0e) '(#x1 #x3 #xc #x0))
+ ; => (:CMD-COMPLETE (:NCMD 1 :OPCODE 3075 :PARAMS (0)))
+
+(defun decode-hci-event (header payload)
+  (let* ((opcode (pull-int header :u8))
+         (len (pull-int header :u8))
+         (handler (getf *hci-events* opcode)))
+    (declare (ignore len))
+
+    (if (not handler) (error "No entry for op ~X" opcode))
+
+    (funcall handler payload)))
+
+(format nil "~x" (decode-hci-event '(#x0e #x04) '(#x1 #x3 #xc #x0)))
+ ; => "(CMD-COMPLETE (NCMD 1 OPCODE C03 PARAMS (STATUS 0)))"
+(format nil "~x" (decode-hci-event '(#xe #x7) '(1 2 #x20 0 #xFB 0 3)))
+ ; => "(CMD-COMPLETE (NCMD 1 OPCODE 2002 PARAMS (STATUS 0 LE-LEN FB LE-NUM 3)))"
 
 (defun make-hci-cmd-param (name value spec)
   (let ((type (getf spec name)))
@@ -144,6 +250,7 @@
 (make-hci-cmd-param
  :tx-time-us 1000
  (nth 1 (getf *hci-cmds* :write-default-data-length)))
+ ; => (232 3)
 
 (defun serialize-hci-params (params spec)
   (when params
@@ -173,6 +280,8 @@
                 :tx-time-us tx-time-us))
 
 (format t "~A~%" (hci-cmd-write-default-data-length 200 1000))
+; (36 32 4 200 0 232 3)
+;  => NIL
 
 (defun hci-reset () (make-hci-cmd :reset))
 
@@ -236,6 +345,7 @@
     (format t "read header~%")
     (setf header (read-bytes (hci-header-len opcode) stream))
     (setf packet (append packet header))
+    (format t "header: ~X~%" header)
     (format t "packet: ~A~%" packet)
 
     ;; parse hci-packet-length from header & read payload
@@ -249,13 +359,21 @@
     ;; return raw packet and parsed packet
     (list
      :opcode opcode
+     :header header
      :payload payload
      :raw packet)))
 
 (defun receive (stream)
-  "Receive a single HCI packet"
+  "Receive and decode a single HCI packet"
   ;; initial implementation is H4
-  (rx-h4 stream))
+  (let* ((packet (rx-h4 stream))
+         (opcode (getf packet :opcode))
+         (header (getf packet :header))
+         (payload (getf packet :payload)))
+
+    (case opcode
+      (:evt (decode-hci-event header payload))
+      (t (error "doesn't look like anything to me")))))
 
 ;;;;;;;;;;;;; host
 
