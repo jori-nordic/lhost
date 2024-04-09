@@ -396,17 +396,23 @@
 (defparameter sizes '(:acl-tx-size 0
                       :acl-rx-size 1))
 
+(defmacro with-gensyms ((&rest names) &body body)
+  `(let ,(loop for n in names collect `(,n (gensym)))
+     ,@body))
+
 (defmacro with-bsim (instance rx-path tx-path &body body)
-  `(with-open-stream (rx (open-simplex-fd ,rx-path nil))
-     (with-open-stream (tx (open-simplex-fd ,tx-path t))
-       (let ((,instance (list :rx rx :tx tx :time 0)))
-         (progn ,@body)
-         ))))
+  (with-gensyms (rx tx)
+    `(with-open-stream (,rx (open-simplex-fd ,rx-path nil))
+       (with-open-stream (,tx (open-simplex-fd ,tx-path t))
+         (let ((,instance (list :rx ,rx :tx ,tx :time 0)))
+           (progn ,@body)
+           )))))
+
 
 (with-bsim sim *bs-rx-path* *bs-tx-path*
   (format t "connected to PHY (rx ~A tx ~A)~%"
-          (sb-posix:file-descriptor rx)
-          (sb-posix:file-descriptor tx))
+          (sb-posix:file-descriptor (getf sim :rx))
+          (sb-posix:file-descriptor (getf sim :tx)))
 
   (with-open-stream (h2c (open-simplex-fd *h2c-path* t))
     (with-open-stream (c2h (open-simplex-fd *c2h-path* nil))
