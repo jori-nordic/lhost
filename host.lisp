@@ -84,15 +84,16 @@
                  (open path :direction :input))))
     (make-simplex-raw-fd-stream file is-output)))
 
-(defparameter *sim-time-us* 0)
-(defun sim-wait (ms tx rx)
-  (setf *sim-time-us* (+ *sim-time-us* (* ms 1000)))
-  (format t "waiting until ~A us (delta ~A ms).." *sim-time-us* ms)
+(defun sim-wait (ms sim)
+  (let ((rx (getf sim :rx))
+        (tx (getf sim :tx)))
+    (setf (getf sim :time) (+ (getf sim :time) (* ms 1000)))
+    (format t "waiting until ~A us (delta ~A ms).." (getf sim :time) ms)
 
-  (write-sequence (make-wait-cmd *sim-time-us*) tx)
+    (write-sequence (make-wait-cmd (getf sim :time)) tx)
 
-  (read-bytes 4 rx)
-  (format t "done~%"))
+    (read-bytes 4 rx)
+    (format t "done~%")))
 
 (defun sim-terminate (tx)
   (format t "term~%")
@@ -393,36 +394,41 @@
 (defparameter sizes '(:acl-tx-size 0
                       :acl-rx-size 1))
 
-(with-open-stream (rx (open-simplex-fd *bs-rx-path* nil))
-  (with-open-stream (tx (open-simplex-fd *bs-tx-path* t))
+(defmacro with-bsim (instance rx-path tx-path &body body)
+  `(with-open-stream (rx (open-simplex-fd ,rx-path nil))
+     (with-open-stream (tx (open-simplex-fd ,tx-path t))
+       (let ((,instance (list :rx rx :tx tx :time 0)))
+         (progn ,@body)
+         ))))
 
-    (setf *sim-time-us* 0)
+(with-bsim sim *bs-rx-path* *bs-tx-path*
+  (format t "connected to PHY (rx ~A tx ~A)~%"
+          (sb-posix:file-descriptor rx)
+          (sb-posix:file-descriptor tx))
 
-    (format t "connected to PHY (rx ~A tx ~A)~%"
-            (sb-posix:file-descriptor rx)
-            (sb-posix:file-descriptor tx))
+  (with-open-stream (h2c (open-simplex-fd *h2c-path* t))
+    (with-open-stream (c2h (open-simplex-fd *c2h-path* nil))
 
-    (with-open-stream (h2c (open-simplex-fd *h2c-path* t))
-      (with-open-stream (c2h (open-simplex-fd *c2h-path* nil))
+      (defparameter *hci-dev* (make-hci-dev))
 
-        (defparameter *hci-dev* (make-hci-dev))
+      ;; Send reset
+      (format t "TX: ~x~%" (make-h4 :cmd (hci-reset)))
+      (send :cmd (hci-reset) h2c)
+      (sim-wait 1000 sim)
 
-        ;; Send reset
-        (format t "TX: ~x~%" (make-h4 :cmd (hci-reset)))
-        (send :cmd (hci-reset) h2c)
-        (sim-wait 1000 tx rx)
+      ;; Wait for reply
+      (format t "RX: ~x~%" (receive c2h))
 
-        ;; Wait for reply
-        (format t "RX: ~x~%" (receive c2h))
+      ;; Read ACL buffer size
+      (format t "TX bufsize~%")
+      (send :cmd (make-hci-cmd :read-buffer-size) h2c)
+      (sim-wait 1000 sim)
 
-        ;; Read ACL buffer size
-        (format t "TX bufsize~%")
-        (send :cmd (make-hci-cmd :read-buffer-size) h2c)
-        (sim-wait 1000 tx rx)
+      ;; Wait for reply
+      (format t "RX: ~x~%" (receive c2h))
 
-        ;; Wait for reply
-        (format t "RX: ~x~%" (receive c2h))
+      (sim-wait 100 sim)
 
-        (sim-wait 100 tx rx)
+      (format t "Terminating sim")
 
-        ))))
+      )))
