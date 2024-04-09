@@ -50,7 +50,9 @@
 ;;;;;;;;;;;;; babblesim PHY
 
 (defconstant PB_MSG_WAIT #x01)
+(defconstant PB_MSG_WAIT_END #x81)
 (defconstant PB_MSG_TERMINATE #xFFFE)
+(defconstant PB_MSG_DISCONNECT #xFFFF)
 
 (defun make-wait-cmd (us)
   (append
@@ -95,9 +97,9 @@
     (read-bytes 4 rx)
     (format t "done~%")))
 
-(defun sim-terminate (tx)
+(defun sim-terminate (sim)
   (format t "term~%")
-  (write-sequence (make-terminate-cmd) tx))
+  (write-sequence (make-terminate-cmd) (getf sim :tx)))
 
 (mapcan #'(lambda (x) x) '(36 32 1 (200 0 232 3)))
 (append '(36 32) '(1) '(200 0 232 3))
@@ -429,6 +431,7 @@
 
       (sim-wait 100 sim)
 
-      (format t "Terminating sim")
+      (format t "Terminating sim~%")
+      (sim-terminate sim)
 
       )))
