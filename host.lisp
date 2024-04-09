@@ -291,8 +291,9 @@
 (format nil "~x" (make-h4 :cmd (hci-reset)))
 
 ;; typing sucks
-(defun send (type payload stream)
-  (write-sequence (make-h4 type payload) stream))
+(defun send (type payload hci)
+  (let ((stream (getf hci :h2c)))
+    (write-sequence (make-h4 type payload) stream)))
 
 (defun h4-parse-opcode (packet)
   "Looks up the H4 opcode"
@@ -366,24 +367,28 @@
      :payload payload
      :raw packet)))
 
-(defun receive (stream)
+(defun receive (hci)
   "Receive and decode a single HCI packet"
   ;; initial implementation is H4
-  (let* ((packet (rx-h4 stream))
-         (opcode (getf packet :opcode))
-         (header (getf packet :header))
-         (payload (getf packet :payload)))
+  (let ((stream (getf hci :c2h)))
+    (let* ((packet (rx-h4 stream))
+           (opcode (getf packet :opcode))
+           (header (getf packet :header))
+           (payload (getf packet :payload)))
 
-    (case opcode
-      (:evt (decode-hci-event header payload))
-      (t (error "doesn't look like anything to me")))))
+      (case opcode
+        (:evt (decode-hci-event header payload))
+        (t (error "doesn't look like anything to me"))))))
 
 ;;;;;;;;;;;;; host
 
-(defun make-hci-dev ()
-  '(:acl-tx-size 0
-    :acl-rx-size 0
-    :random-address 0))
+(defun make-hci-dev (h2c-stream c2h-stream)
+  (list
+   :h2c h2c-stream
+   :c2h c2h-stream
+   :acl-tx-size 0
+   :acl-rx-size 0
+   :random-address 0))
 
 ;;;;;;;;;;;;; script
 
@@ -408,36 +413,39 @@
            (progn ,@body)
            )))))
 
+(defmacro with-hci (instance h2c-path c2h-path &body body)
+  (with-gensyms (h2c c2h)
+    `(with-open-stream (,h2c (open-simplex-fd ,h2c-path t))
+       (with-open-stream (,c2h (open-simplex-fd ,c2h-path nil))
+         (let ((,instance (make-hci-dev ,h2c ,c2h)))
+           (progn ,@body)
+           )))))
 
 (with-bsim sim *bs-rx-path* *bs-tx-path*
   (format t "connected to PHY (rx ~A tx ~A)~%"
           (sb-posix:file-descriptor (getf sim :rx))
           (sb-posix:file-descriptor (getf sim :tx)))
 
-  (with-open-stream (h2c (open-simplex-fd *h2c-path* t))
-    (with-open-stream (c2h (open-simplex-fd *c2h-path* nil))
+  (with-hci hci *h2c-path* *c2h-path*
+    ;; Send reset
+    (format t "TX: ~x~%" (make-h4 :cmd (hci-reset)))
+    (send :cmd (hci-reset) hci)
+    (sim-wait 1000 sim)
 
-      (defparameter *hci-dev* (make-hci-dev))
+    ;; Wait for reply
+    (format t "RX: ~x~%" (receive hci))
 
-      ;; Send reset
-      (format t "TX: ~x~%" (make-h4 :cmd (hci-reset)))
-      (send :cmd (hci-reset) h2c)
-      (sim-wait 1000 sim)
+    ;; Read ACL buffer size
+    (format t "TX bufsize~%")
+    (send :cmd (make-hci-cmd :read-buffer-size) hci)
+    (sim-wait 1000 sim)
 
-      ;; Wait for reply
-      (format t "RX: ~x~%" (receive c2h))
+    ;; Wait for reply
+    (format t "RX: ~x~%" (receive hci))
 
-      ;; Read ACL buffer size
-      (format t "TX bufsize~%")
-      (send :cmd (make-hci-cmd :read-buffer-size) h2c)
-      (sim-wait 1000 sim)
+    (sim-wait 100 sim)
 
-      ;; Wait for reply
-      (format t "RX: ~x~%" (receive c2h))
+    (format t "Terminating sim~%")
+    (sim-terminate sim)
 
-      (sim-wait 100 sim)
-
-      (format t "Terminating sim~%")
-      (sim-terminate sim)
-
-      )))
+    ))
