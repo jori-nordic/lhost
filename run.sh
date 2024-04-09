@@ -28,7 +28,7 @@ $hci_uart \
 
 # Force sim to real-time
 pushd "${BSIM_COMPONENTS_PATH}/device_handbrake"
-./bs_device_handbrake -s=myid -d=2 &
+./bs_device_handbrake -s=myid -d=2 -r=10 &
 
 # Start the PHY
 pushd "${BSIM_OUT_PATH}/bin"
