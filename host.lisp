@@ -88,11 +88,13 @@
 
 (defun sim-wait (ms sim)
   (let ((rx (getf sim :rx))
-        (tx (getf sim :tx)))
-    (setf (getf sim :time) (+ (getf sim :time) (* ms 1000)))
+        (tx (getf sim :tx))
+        (time (getf sim :time)))
+    (setf time (+ time (* ms 1000)))
     (format t "waiting until ~A us (delta ~A ms).." (getf sim :time) ms)
 
-    (write-sequence (make-wait-cmd (getf sim :time)) tx)
+    (write-sequence (make-wait-cmd time) tx)
+    (setf (getf sim :time) time)
 
     (read-bytes 4 rx)
     (format t "done~%")))
