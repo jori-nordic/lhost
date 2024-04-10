@@ -169,6 +169,9 @@
     :le-set-event-mask
     (#x2001 (:events :u64) (:status :u8))
 
+    :set-random-address
+    (#x2005 (:address :bt-addr) (:status :u8))
+
     :read-buffer-size
     (#x2002
      nil
@@ -504,11 +507,18 @@
   (hci-send-cmd (make-hci-cmd :le-set-event-mask
                               :events +u64-max+) hci))
 
+(defun hci-set-random-address (address hci)
+  (let ((status (hci-send-cmd (make-hci-cmd :set-random-address
+                                            :address address) hci)))
+    (if status
+        (setf (getf hci :random-address) address))))
+
 (with-hci hci *h2c-path* *c2h-path*
   (format t "================ enter ===============~%")
   (hci-reset hci)
   (hci-read-buffer-size hci)
   (hci-allow-all-the-events hci)
+  (hci-set-random-address #xC1234567890A hci)
 
   (format t "HCI: ~A~%" hci)
   (format t "================ exit ===============~%")
