@@ -431,9 +431,10 @@
 ;;   (sim-wait 1000 sim)
 ;;   (sim-terminate sim))
 
-(defun hci-reset (hci)
-  (send :cmd (make-hci-cmd :reset) hci)
+(defun hci-send-cmd (cmd hci)
+  "Send a command and check it's return status. Return params if no error."
 
+  (send :cmd cmd hci)
   (let ((response (receive hci)))
     ;; Here `response` is an HCI event object, e.g.
     ;; (CMD-COMPLETE (NCMD 1 OPCODE C03 PARAMS (STATUS 0)))
@@ -443,34 +444,38 @@
            (params (getf data :params))
            (status (getf params :status)))
 
+      (if (not (equal status 0))
+          (format t "cmd failed: status 0x~x" status))
+
       (if (equal status 0)
-          t
-          (format t "cmd failed: status 0x~x" status)))))
+          params
+          nil))))
+
+(defun hci-reset (hci)
+  "Reset the controller"
+  (hci-send-cmd (make-hci-cmd :reset) hci))
 
 (defun hci-read-buffer-size (hci)
-  (send :cmd (make-hci-cmd :read-buffer-size) hci)
+  "Read (and set) H->C buffer lengths and amount"
+  (let ((params
+          (hci-send-cmd (make-hci-cmd :read-buffer-size) hci)))
 
-  (let ((response (receive hci)))
-    (format t "RX: ~x~%" response)
+    (if params
+        (let ((le-len (getf params :le-len))
+              (le-num (getf params :le-num)))
 
-    (let* ((data (nth 1 response))
-           (params (getf data :params))
-           (status (getf params :status))
-           (le-len (getf params :le-len))
-           (le-num (getf params :le-num)))
+          (setf (getf hci :acl-tx-size) le-len)
+          (setf (getf hci :acl-tx-num) le-num)
+          t))))
 
-      (if (equal status 0)
-          (progn
-            (setf (getf hci :acl-tx-size) le-len)
-            (setf (getf hci :acl-tx-num) le-num)
-            t)
-          (format t "cmd failed: status 0x~x" status)))))
 
 (with-hci hci *h2c-path* *c2h-path*
+  (format t "================ enter ===============~%")
   (hci-reset hci)
 
   ;; Read ACL buffer size
   (hci-read-buffer-size hci)
 
-  (format t "done")
+  (format t "HCI: ~A~%" hci)
+  (format t "================ exit ===============~%")
   )
