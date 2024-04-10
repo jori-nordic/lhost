@@ -493,7 +493,9 @@
            (status (getf params :status)))
 
       (if (not (equal status 0))
-          (format t "cmd failed: status 0x~x~%" status))
+          (progn
+            (format t "cmd failed: status 0x~x~%" status)
+            (break)))
 
       (if (equal status 0)
           params
