@@ -72,7 +72,7 @@
               (list (read-byte stream))
               (loop for byte from 0 to (- bytes 1) collect
                                                    (read-byte stream)))))
-    (format t "read-bytes: ~A~%" b)
+    ;; (format t "read-bytes: ~A~%" b)
     b))
 
 (defun make-simplex-raw-fd-stream (file is-output)
@@ -342,27 +342,27 @@
     ;; TODO: don't re-iterate
 
     ;; read h4 opcode
-    (format t "read op~%")
+    ;; (format t "read op~%")
     (setf packet (read-bytes 1 stream))
-    (format t "packet: ~A~%" packet)
+    ;; (format t "packet: ~A~%" packet)
 
     ;; parse h4 opcode
     (setf opcode (h4-parse-opcode packet))
 
     ;; read HCI packet header
-    (format t "read header~%")
+    ;; (format t "read header~%")
     (setf header (read-bytes (hci-header-len opcode) stream))
     (setf packet (append packet header))
-    (format t "header: ~X~%" header)
-    (format t "packet: ~A~%" packet)
+    ;; (format t "header: ~X~%" header)
+    ;; (format t "packet: ~A~%" packet)
 
     ;; parse hci-packet-length from header & read payload
-    (format t "read payload~%")
+    ;; (format t "read payload~%")
     (setf payload (read-bytes
                    (hci-parse-len opcode packet)
                    stream))
     (setf packet (append packet payload))
-    (format t "full packet: ~X~%" packet)
+    (format t "RX[H4]: ~X~%" packet)
 
     ;; return raw packet and parsed packet
     (list
