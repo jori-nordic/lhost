@@ -293,6 +293,8 @@
  :tx-time-us 1000
  (nth 1 (getf *hci-cmds* :write-default-data-length)))
  ; => (232 3)
+(getf *hci-cmds* :write-default-data-length)
+ ; => (8228 (:TX-OCTETS :U16 :TX-TIME-US :U16) NIL)
 
 (defun serialize-hci-params (params spec)
   (when params
@@ -520,6 +522,6 @@
   (hci-allow-all-the-events hci)
   (hci-set-random-address #xC1234567890A hci)
 
-  (format t "HCI: ~A~%" hci)
+  (format t "HCI: ~X~%" hci)
   (format t "================ exit ===============~%")
   )
