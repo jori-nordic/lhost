@@ -2,6 +2,8 @@
 
 ;;;;;;;;;;;;; general utils
 
+(defconstant +u64-max+ (ldb (byte 64 0) -1))
+
 (defun make-range (max)
   (loop for number from 0 to (- max 1) collect number))
 
@@ -140,6 +142,12 @@
      (:tx-octets :u16
       :tx-time-us :u16)
      nil)
+
+    :set-event-mask
+    (#x0c01 (:events :u64) (:status :u8))
+
+    :le-set-event-mask
+    (#x2001 (:events :u64) (:status :u8))
 
     :read-buffer-size
     (#x2002
@@ -469,13 +477,18 @@
           (setf (getf hci :acl-tx-num) le-num)
           t))))
 
+(defun hci-allow-all-the-events (hci)
+  "Allow controller to send us all the possible events"
+  (hci-send-cmd (make-hci-cmd :set-event-mask
+                              :events +u64-max+) hci)
+  (hci-send-cmd (make-hci-cmd :le-set-event-mask
+                              :events +u64-max+) hci))
 
 (with-hci hci *h2c-path* *c2h-path*
   (format t "================ enter ===============~%")
   (hci-reset hci)
-
-  ;; Read ACL buffer size
   (hci-read-buffer-size hci)
+  (hci-allow-all-the-events hci)
 
   (format t "HCI: ~A~%" hci)
   (format t "================ exit ===============~%")
