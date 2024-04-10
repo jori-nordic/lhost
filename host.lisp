@@ -172,6 +172,20 @@
     :set-random-address
     (#x2005 (:address :bt-addr) (:status :u8))
 
+    :set-adv-param
+    (#x2006 (:min-interval :u16
+             :max-interval :u16
+             :type :u8
+             :own-address-type :u8
+             :peer-address-type :u8
+             :peer-address :bt-addr
+             :channel-map :u8
+             :filter-policy :u8)
+     (:status :u8))
+
+    :set-adv-enable
+    (#x200a (:enable :u8) (:status :u8))
+
     :read-buffer-size
     (#x2002
      nil
@@ -515,12 +529,39 @@
     (if status
         (setf (getf hci :random-address) address))))
 
+(defun hci-set-adv-param (hci)
+  ;; We hardcode connectable advertising to get started
+  (hci-send-cmd
+   (make-hci-cmd :set-adv-param
+                 :min-interval 60
+                 :max-interval 60
+                 ;; connectable, scannable, undirected
+                 :type #x00
+                 ;; random address
+                 :own-address-type #x01
+                 ;; no directed, no care
+                 :peer-address-type 0
+                 :peer-address 0
+                 ;; use all channels
+                 :channel-map #b111
+                 ;; #nofilter
+                 :filter-policy 0) hci))
+
+(defun hci-set-adv-enable (enable hci)
+  (hci-send-cmd (make-hci-cmd :set-adv-enable :enable (if enable 1 0)) hci))
+
 (with-hci hci *h2c-path* *c2h-path*
   (format t "================ enter ===============~%")
   (hci-reset hci)
   (hci-read-buffer-size hci)
   (hci-allow-all-the-events hci)
   (hci-set-random-address #xC1234567890A hci)
+
+  ;; Advertise for a short minute
+  (hci-set-adv-param hci)
+  (hci-set-adv-enable t hci)
+  (sleep .1)
+  (hci-set-adv-enable nil hci)
 
   (format t "HCI: ~X~%" hci)
   (format t "================ exit ===============~%")
