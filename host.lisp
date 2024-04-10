@@ -1,3 +1,5 @@
+(declaim (optimize (debug 3)))
+
 ;;;;;;;;;;;;; general utils
 
 (defun make-range (max)
