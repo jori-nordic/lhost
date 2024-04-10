@@ -290,14 +290,12 @@
 ; (36 32 4 200 0 232 3)
 ;  => NIL
 
-(defun hci-reset () (make-hci-cmd :reset))
-
-(format nil "~x" (make-h4 :cmd (hci-reset)))
-
-;; typing sucks
 (defun send (type payload hci)
-  (let ((stream (getf hci :h2c)))
-    (write-sequence (make-h4 type payload) stream)))
+  "Format a payload into H4 and send to hci device"
+  (let ((stream (getf hci :h2c))
+        (packet (make-h4 type payload)))
+    (format t "TX: ~x~%" packet)
+    (write-sequence packet stream)))
 
 (defun h4-parse-opcode (packet)
   "Looks up the H4 opcode"
@@ -432,13 +430,24 @@
 ;;   (sim-wait 1000 sim)
 ;;   (sim-terminate sim))
 
-(with-hci hci *h2c-path* *c2h-path*
-  ;; Send reset
-  (format t "TX: ~x~%" (make-h4 :cmd (hci-reset)))
-  (send :cmd (hci-reset) hci)
+(defun hci-reset (hci)
+  (send :cmd (make-hci-cmd :reset) hci)
 
-  ;; Wait for reply
-  (format t "RX: ~x~%" (receive hci))
+  (let ((response (receive hci)))
+    ;; Here `response` is an HCI event object, e.g.
+    ;; (CMD-COMPLETE (NCMD 1 OPCODE C03 PARAMS (STATUS 0)))
+    (format t "RX: ~x~%" response)
+
+    (let* ((data (nth 1 response))
+           (params (getf data :params))
+           (status (getf params :status)))
+
+      (if (equal status 0)
+          t
+          (format t "cmd failed: status 0x~x" status)))))
+
+(with-hci hci *h2c-path* *c2h-path*
+  (hci-reset hci)
 
   ;; Read ACL buffer size
   (format t "TX bufsize~%")
