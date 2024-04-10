@@ -423,31 +423,26 @@
            (progn ,@body)
            )))))
 
-(with-bsim sim *bs-rx-path* *bs-tx-path*
-  (format t "connected to PHY (rx ~A tx ~A)~%"
-          (sb-posix:file-descriptor (getf sim :rx))
-          (sb-posix:file-descriptor (getf sim :tx)))
+;; (with-bsim sim *bs-rx-path* *bs-tx-path*
+;;   (format t "connected to PHY (rx ~A tx ~A)~%"
+;;           (sb-posix:file-descriptor (getf sim :rx))
+;;           (sb-posix:file-descriptor (getf sim :tx)))
+;;   (sim-wait 1000 sim)
+;;   (sim-terminate sim))
 
-  (with-hci hci *h2c-path* *c2h-path*
-    ;; Send reset
-    (format t "TX: ~x~%" (make-h4 :cmd (hci-reset)))
-    (send :cmd (hci-reset) hci)
-    (sim-wait 1000 sim)
+(with-hci hci *h2c-path* *c2h-path*
+  ;; Send reset
+  (format t "TX: ~x~%" (make-h4 :cmd (hci-reset)))
+  (send :cmd (hci-reset) hci)
 
-    ;; Wait for reply
-    (format t "RX: ~x~%" (receive hci))
+  ;; Wait for reply
+  (format t "RX: ~x~%" (receive hci))
 
-    ;; Read ACL buffer size
-    (format t "TX bufsize~%")
-    (send :cmd (make-hci-cmd :read-buffer-size) hci)
-    (sim-wait 1000 sim)
+  ;; Read ACL buffer size
+  (format t "TX bufsize~%")
+  (send :cmd (make-hci-cmd :read-buffer-size) hci)
 
-    ;; Wait for reply
-    (format t "RX: ~x~%" (receive hci))
-
-    (sim-wait 100 sim)
-
-    (format t "Terminating sim~%")
-    (sim-terminate sim)
-
-    ))
+  ;; Wait for reply
+  (format t "RX: ~x~%" (receive hci))
+  (format t "done")
+  )

@@ -26,10 +26,10 @@ $hci_uart \
 
 # TODO: start peer device
 
-# Force sim to real-time
+# Force sim to (kinda) real-time
 pushd "${BSIM_COMPONENTS_PATH}/device_handbrake"
-./bs_device_handbrake -s=myid -d=2 -r=10 &
+./bs_device_handbrake -s=myid -d=0 -r=10 &
 
 # Start the PHY
 pushd "${BSIM_OUT_PATH}/bin"
-./bs_2G4_phy_v1 -s=myid -D=3
+./bs_2G4_phy_v1 -s=myid -D=2
