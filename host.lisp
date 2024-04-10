@@ -389,6 +389,7 @@
    :h2c h2c-stream
    :c2h c2h-stream
    :acl-tx-size 0
+   :acl-tx-num 0
    :acl-rx-size 0
    :random-address 0))
 
@@ -446,14 +447,30 @@
           t
           (format t "cmd failed: status 0x~x" status)))))
 
+(defun hci-read-buffer-size (hci)
+  (send :cmd (make-hci-cmd :read-buffer-size) hci)
+
+  (let ((response (receive hci)))
+    (format t "RX: ~x~%" response)
+
+    (let* ((data (nth 1 response))
+           (params (getf data :params))
+           (status (getf params :status))
+           (le-len (getf params :le-len))
+           (le-num (getf params :le-num)))
+
+      (if (equal status 0)
+          (progn
+            (setf (getf hci :acl-tx-size) le-len)
+            (setf (getf hci :acl-tx-num) le-num)
+            t)
+          (format t "cmd failed: status 0x~x" status)))))
+
 (with-hci hci *h2c-path* *c2h-path*
   (hci-reset hci)
 
   ;; Read ACL buffer size
-  (format t "TX bufsize~%")
-  (send :cmd (make-hci-cmd :read-buffer-size) hci)
+  (hci-read-buffer-size hci)
 
-  ;; Wait for reply
-  (format t "RX: ~x~%" (receive hci))
   (format t "done")
   )
