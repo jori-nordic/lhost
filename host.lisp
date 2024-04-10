@@ -13,19 +13,23 @@
         collect (extract-byte number pos)))
 
 (make-uint 4 8000)
+ ; => (64 31 0 0)
 
 (defun u2b (type)
   (case type
      (:u8 1)
      (:u16 2)
      (:u32 4)
+     (:u64 8)
      (t (error "unknown type ~A" type))))
 
 (defun make-c-int (type value)
   (make-uint (u2b type) value))
 
 (make-c-int :u8 #xFF)
+ ; => (255)
 (make-c-int :u32 8000)
+ ; => (64 31 0 0)
 
 (defun decode-c-int (bytes)
   (let ((result 0))
@@ -281,12 +285,9 @@
 
 ;; HCI cmds in plist
 ;; name: (plist of :param-name :type)
-(defun hci-cmd-write-default-data-length (tx-octets tx-time-us)
-  (make-hci-cmd :write-default-data-length
-                :tx-octets tx-octets
-                :tx-time-us tx-time-us))
-
-(format t "~A~%" (hci-cmd-write-default-data-length 200 1000))
+(format t "~A~%" (make-hci-cmd :write-default-data-length
+                               :tx-octets 200
+                               :tx-time-us 1000))
 ; (36 32 4 200 0 232 3)
 ;  => NIL
 
