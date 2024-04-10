@@ -22,11 +22,31 @@
      (:u8 1)
      (:u16 2)
      (:u32 4)
-     (:u64 8)
-     (t (error "unknown type ~A" type))))
+     (:u64 8)))
+
+(defun custom-type (type)
+  (case type
+    (:bt-addr 6)))
+
+(defun type->octets (type)
+  (let ((octets))
+    (setf octets (u2b type))
+
+    (if (not octets)
+        (setf octets (custom-type type)))
+
+    (if (not octets)
+        (error "unknown type ~A" type))
+
+    octets))
+
+(type->octets :u32)
+ ; => 4 (3 bits, #x4, #o4, #b100)
+(type->octets :bt-addr)
+ ; => 6 (3 bits, #x6, #o6, #b110)
 
 (defun make-c-int (type value)
-  (make-uint (u2b type) value))
+  (make-uint (type->octets type) value))
 
 (make-c-int :u8 #xFF)
  ; => (255)
