@@ -558,6 +558,98 @@
 (defun hci-set-adv-enable (enable hci)
   (hci-send-cmd (make-hci-cmd :set-adv-enable :enable (if enable 1 0)) hci))
 
+(defconstant +ad-types+
+  (list :flags #x01
+        :class-uuid-16-incomplete #x02
+        :class-uuid-16-complete #x03
+        :class-uuid-32-incomplete #x04
+        :class-uuid-32-complete #x05
+        :class-uuid-128-incomplete #x06
+        :class-uuid-128-complete #x07
+
+        :sollicitation-uuid-16 #x14
+        :sollicitation-uuid-32 #x1f
+        :sollicitation-uuid-128 #x15
+
+        :data-uuid-16 #x16
+        :data-uuid-32 #x20
+        :data-uuid-128 #x21
+
+        :name-short #x08
+        :name-complete #x09
+        :tx-power #x0a
+        :class #x0d
+        :device-id #x10 ; duplicate w/ :sm-tk-value in the spec?
+
+        :sm-tk-value #x10
+        :sm-oob-flags #x11
+        :pairing-hash-c-192 #x0e
+        :pairing-randomizer-r-192 #x0f
+        :pairing-hash-c-256 #x1d
+        :pairing-randomizer-r-256 #x1e
+        :lesc-confirmation-value #x22
+        :lesc-random-value #x23
+
+        :peripheral-connection-interval-range #x12
+        :public-target-address #x17
+        :random-target-address #x18
+        :appearance #x19
+        :advertising-interval #x1a
+        :le-device-address #x1b
+        :le-role #x1c
+
+        :uri #x24
+        :indoor-positioning #x25
+        :transport-discovery-data #x26
+        :le-supported-features #x27
+        :channel-map-update-indication #x28
+
+        :pb-adv #x29
+        :mesh-message #x2a
+        :mesh-beacon #x2b
+
+        :big-info #x2c
+        :broadcast-code #x2d
+        :broadcast-name #x30
+        :past-information #x32
+
+        :resolvable-set-indentifier #x2e
+        :advertising-interval-long #x2f
+        :encrypted-ad #x31
+        :electronic-shelf-label #x34
+        :3d-information-data #x3d
+        :manufacturer-specific #xff))
+
+(defun make-ad (type payload)
+  ;; TODO: accept both hex and name for type
+  ;; e.g. :encrypted-ad or #x31
+  (if (>= (length payload) (- 256 8))
+      (error "AD payload is too big"))
+
+  (append (list
+           (+ 1 (length payload))
+           (getf +ad-types+ type))
+          payload))
+
+(defun to-c-string (cl-string &optional null-terminated)
+  "Converts a CL string to a list of bytes"
+  (append
+   (mapcar (lambda (c) (char-code c)) (coerce cl-string 'list))
+   (if null-terminated (list 0) nil)))
+
+(to-c-string "test")
+ ; => (116 101 115 116)
+(to-c-string "test" t)
+ ; => (116 101 115 116 0)
+
+(defun make-ad-name (name)
+  ;; This probably only works with ASCII
+  ;; TODO: add unicode support
+  (make-ad :name-complete (to-c-string name)))
+
+(make-ad-name "hello")
+ ; => (6 9 104 101 108 108 111)
+
 (with-hci hci *h2c-path* *c2h-path*
   (format t "================ enter ===============~%")
   (hci-reset hci)
