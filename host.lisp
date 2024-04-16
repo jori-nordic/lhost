@@ -1,5 +1,7 @@
 (declaim (optimize (debug 3)))
 
+(require 'sb-posix)
+
 ;;;;;;;;;;;;; general utils
 
 (defconstant +u64-max+ (ldb (byte 64 0) -1))
