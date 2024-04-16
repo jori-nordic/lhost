@@ -9,6 +9,10 @@
 #include <zephyr/bluetooth/bluetooth.h>
 #include <zephyr/bluetooth/hci.h>
 
+#include <zephyr/logging/log.h>
+
+LOG_MODULE_REGISTER(observer, LOG_LEVEL_INF);
+
 #define NAME_LEN 30
 
 static void device_found(const bt_addr_le_t *addr, int8_t rssi, uint8_t type,
@@ -60,6 +64,7 @@ static void scan_recv(const struct bt_le_scan_recv_info *info,
 
 	(void)memset(name, 0, sizeof(name));
 
+	LOG_HEXDUMP_DBG(buf->data, buf->len, "AD data");
 	data_len = buf->len;
 	bt_data_parse(buf, data_cb, name);
 
