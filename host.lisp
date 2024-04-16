@@ -647,24 +647,58 @@
            (getf +ad-types+ type))
           payload))
 
+(defun char->utf8 (char)
+  "Converts a CL character to a UTF-8 (list of bytes)."
+  ;; Phind made this! 10 bucks well spent
+  ;; https://www.phind.com/search?cache=kohb0esnotediegmqr58rt1m
+  (let ((code (char-code char)))
+    (cond
+      ;; 1-byte sequence
+      ((<= code #x7F)
+       (list code))
+      ;; 2-byte sequence
+      ((<= code #x7FF)
+       (list (logior #xC0 (ash code -6))
+             (logior #x80 (logand code #x3F))))
+      ;; 3-byte sequence
+      ((<= code #xFFFF)
+       (list (logior #xE0 (ash code -12))
+             (logior #x80 (logand (ash code -6) #x3F))
+             (logior #x80 (logand code #x3F))))
+      ;; 4-byte sequence
+      ((<= code #x10FFFF)
+       (list (logior #xF0 (ash code -18))
+             (logior #x80 (logand (ash code -12) #x3F))
+             (logior #x80 (logand (ash code -6) #x3F))
+             (logior #x80 (logand code #x3F)))))))
+
+(char->utf8 #\a)
+ ; => (97)
+(char->utf8 #\λ)
+ ; => (206 187)
+(char->utf8 #\💻)
+ ; => (240 159 146 187)
+
 (defun to-c-string (cl-string &optional null-terminated)
   "Converts a CL string to a list of bytes"
   (append
-   (mapcar (lambda (c) (char-code c)) (coerce cl-string 'list))
+   (mapcan (lambda (c) (char->utf8 c)) (coerce cl-string 'list))
    (if null-terminated (list 0) nil)))
 
 (to-c-string "test")
  ; => (116 101 115 116)
 (to-c-string "test" t)
  ; => (116 101 115 116 0)
+(to-c-string "🔵-🦷")
+ ; => (240 159 148 181 45 240 159 166 183)
 
 (defun make-ad-name (name)
-  ;; This probably only works with ASCII
-  ;; TODO: add unicode support
   (make-ad :name-complete (to-c-string name)))
 
 (make-ad-name "hello")
  ; => (6 9 104 101 108 108 111)
+(make-ad-name "🎉")
+ ; => (5 9 240 159 142 137)
 
 (with-hci hci *h2c-path* *c2h-path*
   (format t "================ enter ===============~%")
@@ -677,7 +711,7 @@
   (hci-set-adv-param hci)
   (hci-set-adv-data (list
                      (make-ad :flags '(#x01)) ; LE General discoverable
-                     (make-ad-name "hello"))
+                     (make-ad-name "🔵-🦷"))
                     hci)
   (hci-set-adv-enable t hci)
   (sleep .1)
