@@ -185,6 +185,11 @@
              :filter-policy :u8)
      (:status :u8))
 
+    :set-adv-data
+    (#x2008 (:len :u8
+             :data (list :u8))
+     (:status :u8))
+
     :set-adv-enable
     (#x200a (:enable :u8) (:status :u8))
 
@@ -302,7 +307,11 @@
     (unless type
       (error (format nil "Unknown param: ~A" name)))
 
-    (make-c-struct-member (list name type value))))
+    ;; If it's a list, assume it's a "raw" list of bytes.
+    ;; If it's a type specifier (e.g. :u8), interpret it as a "c struct member".
+    (if (listp type)
+        value
+        (make-c-struct-member (list name type value)))))
 
 ;; test it
 (make-hci-cmd-param
@@ -558,6 +567,13 @@
 (defun hci-set-adv-enable (enable hci)
   (hci-send-cmd (make-hci-cmd :set-adv-enable :enable (if enable 1 0)) hci))
 
+(defun hci-set-adv-data (data hci)
+  "Sets advertising data. Input is a list of AD structures (byte lists)."
+  (let ((flattened (mapcan #'append data)))
+    (hci-send-cmd
+     (make-hci-cmd :set-adv-data
+                   :len (length flattened) :data flattened) hci)))
+
 (defconstant +ad-types+
   (list :flags #x01
         :class-uuid-16-incomplete #x02
@@ -659,6 +675,10 @@
 
   ;; Advertise for a short minute
   (hci-set-adv-param hci)
+  (hci-set-adv-data (list
+                     (make-ad :flags '(#x01)) ; LE General discoverable
+                     (make-ad-name "hello"))
+                    hci)
   (hci-set-adv-enable t hci)
   (sleep .1)
   (hci-set-adv-enable nil hci)
