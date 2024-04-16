@@ -334,11 +334,15 @@
 
 ;; HCI cmds in plist
 ;; name: (plist of :param-name :type)
-(format t "~A~%" (make-hci-cmd :write-default-data-length
-                               :tx-octets 200
-                               :tx-time-us 1000))
-; (36 32 4 200 0 232 3)
-;  => NIL
+(format nil "~A~%" (make-hci-cmd :write-default-data-length
+                                 :tx-octets 200
+                                 :tx-time-us 1000))
+; cmd WRITE-DEFAULT-DATA-LENGTH op 2024 param-spec: (TX-OCTETS U16 TX-TIME-US U16) params (TX-OCTETS
+;                                                                                          C8
+;                                                                                          TX-TIME-US
+;                                                                                          3E8)
+;  => "(36 32 4 200 0 232 3)
+; "
 
 (defun send (type payload hci)
   "Format a payload into H4 and send to hci device"
