@@ -637,15 +637,23 @@
         :manufacturer-specific #xff))
 
 (defun make-ad (type payload)
-  ;; TODO: accept both hex and name for type
+  "Makes an AD (advertising data) struct. type is number/specifier, payload is byte list."
+  ;; accepts both number and name for type
   ;; e.g. :encrypted-ad or #x31
   (if (>= (length payload) (- 256 8))
       (error "AD payload is too big"))
 
   (append (list
            (+ 1 (length payload))
-           (getf +ad-types+ type))
+           (if (numberp type)
+               type
+               (getf +ad-types+ type)))
           payload))
+
+(make-ad :flags '(#x01))
+ ; => (2 1 1)
+(make-ad #x01 '(#x03))
+ ; => (2 1 3)
 
 (defun char->utf8 (char)
   "Converts a CL character to a UTF-8 (list of bytes)."
