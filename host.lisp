@@ -708,23 +708,55 @@
 (make-ad-name "🎉")
  ; => (5 9 240 159 142 137)
 
+(defun post-internal-event (hci)
+  ;; TODO: implement
+  nil)
+
+(defun adv-state-machine (state hci)
+  ;; TODO: initialize state if uninit
+  ;;
+  ;; Start an advertiser in an Async fashion
+  ;;
+  ;; Sending commands will always succeed as that is just an append operation.
+  ;; The state transitions happen on RXing the command-complete events.
+  (let ((state-name (first state))
+        (state-data (second state)))
+    ;; TODO:
+    ;; - read the state name + data:
+    ;; - figure out if we are waiting on a command-complete
+    ;; - read data to check if RSP arrived
+    ;; - if RSP arrived, set new state, post event to self
+    (case state
+      (:wait-rsp (if (cmd-rsp? state-data)
+                     (progn
+                       (post-internal-event hci)
+                       (getf :next-state state-data))
+                     state))
+
+      (:pre-reset (make-state :reset-ok (hci-reset hci)))
+      (:reset-ok (make-state :read-bufsize-ok (hci-read-buffer-size hci)))
+      (:read-bufsize-ok (make-state :set-event-mask-ok (hci-allow-all-the-events hci)))
+      (:set-random-address-ok (make-state :set-adv-param-ok (hci-set-random-address #xC1234567890A hci)))
+      (:set-adv-param-ok (make-state :set-adv-data-ok (hci-set-adv-data (list
+                                                                         (make-ad :flags '(#x01)) ; LE General discoverable
+                                                                         (make-ad-name "🔵-🦷"))
+                                                                        hci)))
+      (:set-adv-data-ok (make-state :adv-enable-ok (hci-set-adv-enable t hci)))
+      (:adv-enable-ok (make-state :adv-disable-ok (hci-set-adv-enable nil hci)))
+
+      ;; TODO: add idle state
+      )))
+
+(defun wait-for-event (hci)
+  ;; TODO: implement
+  (sleep .1))
+
 (with-hci hci *h2c-path* *c2h-path*
   (format t "================ enter ===============~%")
-  (hci-reset hci)
-  (hci-read-buffer-size hci)
-  (hci-allow-all-the-events hci)
-  (hci-set-random-address #xC1234567890A hci)
 
-  ;; Advertise for a short minute
-  (hci-set-adv-param hci)
-  (hci-set-adv-data (list
-                     (make-ad :flags '(#x01)) ; LE General discoverable
-                     (make-ad-name "🔵-🦷"))
-                    hci)
-  (hci-set-adv-enable t hci)
-  (sleep .1)
-  (hci-set-adv-enable nil hci)
-
+  (let ((state))
+    (wait-for-event hci)
+    (setf state (adv-state-machine state hci)))
   (format t "HCI: ~X~%" hci)
   (format t "================ exit ===============~%")
   )
